@@ -1,0 +1,39 @@
+# Python virtual environments
+.AgenticUniverse/
+.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated execution outputs
+runs/
+
+# Local databases
+controller_state.db
+*.sqlite
+*.sqlite3
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# IDE settings
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
