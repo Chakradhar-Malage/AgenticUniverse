@@ -20,6 +20,11 @@ ON CONFLICT({",".join(AGG_KEY)}) DO UPDATE SET
   engaged=engaged+excluded.engaged, halluc=halluc+excluded.halluc"""
 
 
+UPSERT_ATT = """INSERT INTO agg_attempt(workflow_id,day,hour,attempt_no,dials,connected,engaged) VALUES(?,?,?,?,?,?,?)
+ON CONFLICT(workflow_id,day,hour,attempt_no) DO UPDATE SET
+  dials=dials+excluded.dials, connected=connected+excluded.connected, engaged=engaged+excluded.engaged"""
+
+
 def day_hour(ts):
     """'2027-01-05T14:15:00+05:30' -> (day index since D0, hour 0-23 in IST). Negative = history."""
     d = datetime.fromisoformat(ts)
@@ -48,6 +53,7 @@ class Ingestor:
         if st.chunk_done(chunk_no):
             return 0
         agg = defaultdict(lambda: [0, 0, 0, 0])
+        att = defaultdict(lambda: [0, 0, 0])
         leads, camps, cfgs, apprs = [], [], [], []
         n = max_id = 0
         for line in text.splitlines():
@@ -68,6 +74,10 @@ class Ingestor:
                 a[1] += bool(ev["connected"])
                 a[2] += bool(ev["engaged"])
                 a[3] += bool((ev.get("qa") or {}).get("hallucination_flag"))
+                b = att[(ev["workflow_id"], day, hour, ev.get("attempt_no", 0))]
+                b[0] += 1
+                b[1] += bool(ev["connected"])
+                b[2] += bool(ev["engaged"])
             elif t == "lead":
                 ft = ev["features"]
                 row = (ev["lead_id"], ev["workflow_id"], ev["person_id"], ft["age_band"], ft["lang"],
@@ -90,6 +100,7 @@ class Ingestor:
             db.executemany("INSERT OR IGNORE INTO config_log VALUES(?,?,?,?,?,?,?,?)", cfgs)
             db.executemany("INSERT OR IGNORE INTO approval_log VALUES(?,?,?,?,?,?)", apprs)
             db.executemany(UPSERT, [(*k, *v) for k, v in agg.items()])
+            db.executemany(UPSERT_ATT, [(*k, *v) for k, v in att.items()])
             db.execute("INSERT INTO chunks_done VALUES(?,?,?,?,strftime('%s','now'))",
                        (chunk_no, kind, n, max_id))
         return n

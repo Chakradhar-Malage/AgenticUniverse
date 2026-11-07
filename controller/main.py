@@ -5,7 +5,8 @@ import os
 import sys
 import time
 
-from .client import Sim
+from .client import Sim, SimError
+from .governance import Governance
 from .ingest import Ingestor, pull_new_chunks
 from .store import Store
 
@@ -43,11 +44,16 @@ def main():
     sim = Sim(a.url)
     store = open_store_for_this_world(sim, a.db)
     ing = Ingestor(store)
+    gov = Governance(sim, store)
     st = sim.state()
     store.audit("controller_started", sim_ts=st.get("ts"), credits=st.get("credits_remaining"), # type: ignore
                 resumed=store.max_chunk("events") >= 0)
-    log("started at sim ts", st.get("ts"), "| resumed:", store.max_chunk("events") >= 0) # pyright: ignore[reportAttributeAccessIssue]
+    log("started at sim ts", st.get("ts"), "| resumed:", store.max_chunk("events") >= 0) # type: ignore
 
+    try:
+        gov.resume(st.get("ts"))                 # type: ignore # settle anything a previous crash left half-done
+    except SimError as e:
+        log("resume failed (will retry next tick):", e)
     n = pull_new_chunks(sim, ing, "history")
     log(f"history ingested: {n} new events")
 
@@ -56,7 +62,11 @@ def main():
         if st.get("finished"): # type: ignore
             break
         pull_new_chunks(sim, ing, "events")      # 1. observe everything that already happened
-        # (later steps plug in here: detect -> experiment -> propose -> apply)
+        try:
+            gov.poll(st.get("ts"))               # type: ignore # follow open approvals; apply approved ones at once
+        except SimError as e:
+            log("governance poll failed (will retry next tick):", e)
+        # (later steps plug in here: detect -> experiment -> propose)
         r = sim.advance(a.tick)                  # 2. let the world move
         if r.get("finished"):
             break

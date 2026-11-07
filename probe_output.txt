@@ -2,14 +2,14 @@
 ===== GET /sim/state =====
 {
  "scenario": "public_01_dev",
- "sim_minute": 0,
- "ts": "2027-01-04T00:00:00+05:30",
+ "sim_minute": 11520,
+ "ts": "2027-01-12T00:00:00+05:30",
  "end_minute": 11520,
- "finished": false,
+ "finished": true,
  "tick_minutes": 15,
  "credits_remaining": 200.0,
- "chunks": 1,
- "last_event_id": 187400
+ "chunks": 393,
+ "last_event_id": 297024
 }
 
 ===== GET /workflows (first item) =====
@@ -235,7 +235,28 @@
 ]
 
 ===== GET /events/chunks?kind=events =====
-[]
+[
+ {
+  "chunk": 1,
+  "path": "events/000001.jsonl",
+  "kind": "events",
+  "events": 3303,
+  "first_event_id": 187401,
+  "last_event_id": 190703,
+  "until_minute": 495,
+  "until_ts": "2027-01-04T08:15:00+05:30"
+ },
+ {
+  "chunk": 2,
+  "path": "events/000002.jsonl",
+  "kind": "events",
+  "events": 175,
+  "first_event_id": 190704,
+  "last_event_id": 190878,
+  "until_minute": 555,
+  "until_ts": "2027-01-04T09:15:00+05:30"
+ }
+]
 
 ===== GET /approvals =====
 []

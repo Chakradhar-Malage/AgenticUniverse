@@ -33,6 +33,19 @@ CREATE TABLE IF NOT EXISTS agg(
   PRIMARY KEY(workflow_id, day, hour, config_version, cohort_id, welcome, voice, caller_id, prompt,
               age_band, lang, city_tier));
 
+-- Same counters but split by ATTEMPT NUMBER. Retries pick up less than first attempts and happen later
+-- in the day, so without this an "hour-of-day" or "drift" signal is partly just attempt mix.
+CREATE TABLE IF NOT EXISTS agg_attempt(
+  workflow_id TEXT, day INTEGER, hour INTEGER, attempt_no INTEGER,
+  dials INTEGER DEFAULT 0, connected INTEGER DEFAULT 0, engaged INTEGER DEFAULT 0,
+  PRIMARY KEY(workflow_id, day, hour, attempt_no));
+
+-- every proposal we make (approval path or auto-apply). Written as an INTENT before we call the sim.
+CREATE TABLE IF NOT EXISTS proposals(
+  proposal_id TEXT PRIMARY KEY, workflow_id TEXT, kind TEXT, base_version INTEGER, status TEXT,
+  approval_id TEXT, config_json TEXT, body_json TEXT, created_sim_ts TEXT, updated_sim_ts TEXT,
+  applied_version INTEGER, detail TEXT);
+
 -- every config change we SEE (supervisor edits, our own applies)
 CREATE TABLE IF NOT EXISTS config_log(
   event_id INTEGER PRIMARY KEY, workflow_id TEXT, version INTEGER, actor TEXT,

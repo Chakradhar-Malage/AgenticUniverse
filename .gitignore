@@ -19,6 +19,7 @@ runs/
 
 # Local databases
 controller_state.db
+smoke.db
 *.sqlite
 *.sqlite3
 
