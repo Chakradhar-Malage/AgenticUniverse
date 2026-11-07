@@ -1,0 +1,241 @@
+
+===== GET /sim/state =====
+{
+ "scenario": "public_01_dev",
+ "sim_minute": 0,
+ "ts": "2027-01-04T00:00:00+05:30",
+ "end_minute": 11520,
+ "finished": false,
+ "tick_minutes": 15,
+ "credits_remaining": 200.0,
+ "chunks": 1,
+ "last_event_id": 187400
+}
+
+===== GET /workflows (first item) =====
+{
+ "workflow_id": "nw_renewal",
+ "tenant_id": "northwind_life",
+ "use_case": "life-insurance renewal premium reminder (persistency)",
+ "languages": [
+  "hi",
+  "en",
+  "ta"
+ ],
+ "dialling_window": [
+  9,
+  21
+ ],
+ "dials_per_hour": 300,
+ "cadence": [
+  2,
+  3,
+  3
+ ],
+ "min_gap_minutes": 120,
+ "daily_batch": {
+  "size": 1100,
+  "at_hour": 8,
+  "returning_share": 0.4
+ },
+ "mid_flight": "allowed",
+ "objective": {
+  "primary": "engagement_rate",
+  "guardrail": {
+   "pickup_rate_max_drop": 0.02
+  }
+ },
+ "options": {
+  "welcome_message": [
+   "W1",
+   "W2",
+   "W3"
+  ],
+  "voice": [
+   "V1",
+   "V2",
+   "V3",
+   "V4"
+  ],
+  "caller_id": [
+   "D1",
+   "D2",
+   "D3",
+   "D4"
+  ],
+  "prompt_version": [
+   "P1",
+   "P3",
+   "P4",
+   "P5"
+  ]
+ },
+ "prompt_catalog": {
+  "P1": "Current production prompt",
+  "P3": "Grounded: benefit claims restricted to policy-schedule fields; tighter objection handling",
+  "P4": "Persuasive: freer objection handling and richer benefit explanations",
+  "P5": "Strict: near-verbatim compliance script"
+ },
+ "governance": {
+  "auto_apply": {
+   "enabled": true,
+   "allowed_dims": [
+    "schedule",
+    "caller_id"
+   ],
+   "max_shift": 0.5
+  },
+  "approver_hours": [
+   10,
+   19
+  ],
+  "approver_latency_minutes": [
+   30,
+   240
+  ],
+  "proposal_ttl_hours": 24,
+  "apply_window_hours": 2,
+  "max_requests_per_24h": 3,
+  "base_reject_rate": 0.1,
+  "min_validation_pass_rate": 0.97
+ },
+ "current_version": 1
+}
+
+===== GET /workflows/nw_renewal =====
+{
+ "workflow_id": "nw_renewal",
+ "tenant_id": "northwind_life",
+ "use_case": "life-insurance renewal premium reminder (persistency)",
+ "languages": [
+  "hi",
+  "en",
+  "ta"
+ ],
+ "dialling_window": [
+  9,
+  21
+ ],
+ "dials_per_hour": 300,
+ "cadence": [
+  2,
+  3,
+  3
+ ],
+ "min_gap_minutes": 120,
+ "daily_batch": {
+  "size": 1100,
+  "at_hour": 8,
+  "returning_share": 0.4
+ },
+ "mid_flight": "allowed",
+ "objective": {
+  "primary": "engagement_rate",
+  "guardrail": {
+   "pickup_rate_max_drop": 0.02
+  }
+ },
+ "options": {
+  "welcome_message": [
+   "W1",
+   "W2",
+   "W3"
+  ],
+  "voice": [
+   "V1",
+   "V2",
+   "V3",
+   "V4"
+  ],
+  "caller_id": [
+   "D1",
+   "D2",
+   "D3",
+   "D4"
+  ],
+  "prompt_version": [
+   "P1",
+   "P3",
+   "P4",
+   "P5"
+  ]
+ },
+ "prompt_catalog": {
+  "P1": "Current production prompt",
+  "P3": "Grounded: benefit claims restricted to policy-schedule fields; tighter objection handling",
+  "P4": "Persuasive: freer objection handling and richer benefit explanations",
+  "P5": "Strict: near-verbatim compliance script"
+ },
+ "governance": {
+  "auto_apply": {
+   "enabled": true,
+   "allowed_dims": [
+    "schedule",
+    "caller_id"
+   ],
+   "max_shift": 0.5
+  },
+  "approver_hours": [
+   10,
+   19
+  ],
+  "approver_latency_minutes": [
+   30,
+   240
+  ],
+  "proposal_ttl_hours": 24,
+  "apply_window_hours": 2,
+  "max_requests_per_24h": 3,
+  "base_reject_rate": 0.1,
+  "min_validation_pass_rate": 0.97
+ },
+ "current_version": 1
+}
+
+===== GET /workflows/nw_renewal/config =====
+{
+ "workflow_id": "nw_renewal",
+ "version": 1,
+ "actor": "business_default",
+ "applied_at": null,
+ "config": {
+  "cohorts": [],
+  "allocations": {
+   "default": {
+    "welcome_message": {
+     "W1": 1.0
+    },
+    "voice": {
+     "V1": 1.0
+    },
+    "caller_id": {
+     "D1": 0.5,
+     "D2": 0.5
+    }
+   }
+  },
+  "prompt_version": "P1",
+  "schedule": {
+   "hour_weights": {},
+   "lead_preferred_hour": {}
+  }
+ }
+}
+
+===== GET /workflows/nw_renewal/config/history =====
+[
+ {
+  "version": 1,
+  "actor": "business_default",
+  "changed_dims": [],
+  "applied_at": null,
+  "proposal_id": null,
+  "approval_id": null
+ }
+]
+
+===== GET /events/chunks?kind=events =====
+[]
+
+===== GET /approvals =====
+[]
