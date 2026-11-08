@@ -30,20 +30,31 @@ STRIKES = 2            # consecutive ticks flagged before acting
 FLOOR = 0.03           # traffic share kept on a bad DID so recovery is noticed
 WINDOW_H = 2           # recent window for detection (short: fresh evidence is not diluted by healthy hours)
 RECOVER_H = 24         # longer window for judging recovery (bad DIDs get little traffic)
-RECOVER_MIN_N = 150
+RECOVER_MIN_N = 300    # a recovering number must show real volume before we trust it again
+RECOVER_GAP = 0.05     # within 5% of its peers...
+RECOVER_P = 0.20       # ...and no sign it is still worse
+PROBATION_H = 12       # then its share ramps back up over 12 hours (a healed number relapses if hit at once)
 COOLDOWN_MIN = 60      # minimum minutes between EXPLORATORY rebalances (bypassed while any number is bad)
 MIN_TV = 0.05          # ignore rebalances smaller than this
 
 
 # ------------------------------------------------------------------ pure functions (unit-tested)
-def did_window(store, wf, now_idx, hours):
-    """{did: (dials, connected)} over the last `hours` hours (inclusive of the current partial hour)."""
-    now_day = now_idx // 24
+def did_range(store, wf, lo, hi):
+    """{did: (dials, connected)} for hour-index range [lo, hi]."""
     rows = store.db.execute(
         "SELECT caller_id, SUM(dials), SUM(connected) FROM agg WHERE workflow_id=? AND day BETWEEN ? AND ? "
-        "AND day*24+hour BETWEEN ? AND ? GROUP BY caller_id",
-        (wf, now_day - 2, now_day, now_idx - hours + 1, now_idx)).fetchall()
+        "AND day*24+hour BETWEEN ? AND ? GROUP BY caller_id", (wf, lo // 24, hi // 24, lo, hi)).fetchall()
     return {d: (n or 0, k or 0) for d, n, k in rows}
+
+
+def did_window(store, wf, now_idx, hours):
+    """Last `hours` hours, inclusive of the current partial hour."""
+    return did_range(store, wf, now_idx - hours + 1, now_idx)
+
+
+def _ts_idx(ts):
+    d, h = day_hour(ts)
+    return d * 24 + h
 
 
 def _pool(stats, dids, min_n):
@@ -58,19 +69,24 @@ def _pool(stats, dids, min_n):
 
 def assess(options, stats, recov, prev):
     """Update each DID's status from fresh window stats.
-    prev: {did: (status, strikes)}. Returns (new {did: (status, strikes)}, evidence list)."""
+    prev: {did: (status, strikes)}.
+    recov: {bad_did: {did: (dials, connected)}}, a window for each BAD number covering ONLY the time since it
+           was flagged. (First version used a plain 24h window, which still contained the healthy hours before the
+           incident and declared the number 'recovered' 30 minutes after it was cut. Found via our own audit trail.)
+    Returns (new {did: (status, strikes)}, evidence list)."""
     out, ev = {}, []
     for d in options:
         st, strikes = prev.get(d, ("unknown", 0))
         peers = [x for x in options if x != d and prev.get(x, ("unknown", 0))[0] != "bad"]
         if st == "bad":                                           # can it come back?
-            rn, rk = recov.get(d, (0, 0))
-            pn, pk = _pool(recov, peers, MIN_N)
+            rw = recov.get(d, {})
+            rn, rk = rw.get(d, (0, 0))
+            pn, pk = _pool(rw, peers, MIN_N)
             if rn >= RECOVER_MIN_N and pn >= MIN_N and pk:
                 t = two_prop(rk, rn, pk, pn)
                 gap = 1 - (rk / rn) / (pk / pn)
-                if t["p_less"] > 0.05 and gap < 0.10:
-                    st, strikes = "good", 0
+                if t["p_less"] > RECOVER_P and gap < RECOVER_GAP:
+                    st, strikes = "probation", 0
                     ev.append({"did": d, "event": "recovered", "n": rn, "pickup": rk / rn, "peer_pickup": pk / pn})
             out[d] = (st, strikes)
             continue
@@ -96,14 +112,26 @@ def assess(options, stats, recov, prev):
     return out, ev
 
 
-def target_dist(options, status, floor=FLOOR):
-    """Bad DIDs keep a small floor; everything else (good + not-yet-judged) shares the rest evenly."""
-    bad = [d for d in options if status.get(d, ("unknown", 0))[0] == "bad"]
-    ok = [d for d in options if d not in bad]
-    if not ok:
+def target_dist(options, status, floor=FLOOR, ramp=None):
+    """Bad DIDs keep a small floor. A number on probation ramps from the floor up to a full share as `ramp`
+    (0..1, fraction of PROBATION_H elapsed) grows. Everything else (good + not yet judged) shares the rest evenly."""
+    ramp = ramp or {}
+    st = lambda d: status.get(d, ("unknown", 0))[0]
+    bad = [d for d in options if st(d) == "bad"]
+    prob = [d for d in options if st(d) == "probation"]
+    ok = [d for d in options if d not in bad and d not in prob]
+    if not ok and not prob:
         return None
+    even = (1 - floor * len(bad)) / (len(ok) + len(prob))
     w = {d: floor for d in bad}
-    w.update({d: (1 - floor * len(bad)) / len(ok) for d in ok})
+    for d in prob:
+        w[d] = floor + (even - floor) * max(0.0, min(1.0, ramp.get(d, 0.0)))
+    rest = 1 - sum(w.values())
+    if ok:
+        w.update({d: rest / len(ok) for d in ok})
+    else:
+        tot = sum(w.values())
+        w = {d: v / tot for d, v in w.items()}
     return w
 
 
@@ -141,6 +169,9 @@ class CallerIdManager:
                                "status=excluded.status, strikes=excluded.strikes, since_ts=CASE WHEN status<>excluded.status "
                                "THEN excluded.since_ts ELSE since_ts END", (wid, d, st, k, ts))
 
+    def _since(self, wid):
+        return dict(self.store.db.execute("SELECT caller_id, since_ts FROM did_state WHERE workflow_id=?", (wid,)).fetchall())
+
     def _cooldown_ok(self, wid, ts):
         last = self.store.meta_get(f"cid_last_{wid}")
         return last is None or parse_ts(ts) - parse_ts(last) >= timedelta(minutes=COOLDOWN_MIN)
@@ -161,13 +192,26 @@ class CallerIdManager:
     def _tick_wf(self, wid, wf, opts, ts, idx):
         prev = self._prev(wid)
         stats = did_window(self.store, wid, idx, WINDOW_H)
-        recov = did_window(self.store, wid, idx, RECOVER_H)
+        since0 = self._since(wid)
+        recov = {}
+        for d in opts:                                          # recovery evidence = ONLY data since the number was flagged
+            if prev.get(d, ("unknown", 0))[0] == "bad" and since0.get(d):
+                recov[d] = did_range(self.store, wid, max(idx - RECOVER_H + 1, _ts_idx(since0[d])), idx)
         new, events = assess(opts, stats, recov, prev)
         newly_bad = [e for e in events if e["event"] == "bad"]
+        since = self._since(wid)
+        for d, (st_, k_) in list(new.items()):                 # probation graduates to good after PROBATION_H
+            if st_ == "probation" and prev.get(d, ("", 0))[0] == "probation" and since.get(d) and \
+                    (parse_ts(ts) - parse_ts(since[d])) >= timedelta(hours=PROBATION_H):
+                new[d] = ("good", 0)
+                events.append({"did": d, "event": "graduated"})
         for e in events:
             self.store.audit("did_" + e["event"], wid, ts, **e)
         self._save(wid, new, prev, ts)
-        tgt = target_dist(opts, new)
+        since = self._since(wid)
+        ramp = {d: (parse_ts(ts) - parse_ts(since[d])).total_seconds() / 3600 / PROBATION_H
+                for d, (s_, _) in new.items() if s_ == "probation" and since.get(d)}
+        tgt = target_dist(opts, new, ramp=ramp)
         if tgt is None:
             return
         live = self.sim._json("GET", f"/workflows/{wid}/config")
@@ -175,7 +219,7 @@ class CallerIdManager:
         cur = normalise(cfg.get("allocations", {}).get("default", {}).get("caller_id", {}))
         if tv_distance(cur, tgt) < MIN_TV:
             return
-        any_bad = any(st == "bad" for st, _ in new.values())
+        any_bad = any(st in ("bad", "probation") for st, _ in new.values())
         if not any_bad and not self._cooldown_ok(wid, ts):     # protective steps run every tick until done
             return
         pol = wf["governance"]["auto_apply"]

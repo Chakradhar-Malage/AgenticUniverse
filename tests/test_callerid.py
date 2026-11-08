@@ -40,15 +40,18 @@ def test_small_gap_is_not_material():
 
 def test_bad_number_recovers_only_when_comparable():
     prev = {"D1": ("good", 0), "D2": ("bad", 0), "D3": ("good", 0)}
-    still, _ = assess(OPTS, {}, {"D1": (800, 220), "D2": (200, 20), "D3": (800, 216)}, prev)
-    assert still["D2"][0] == "bad"
-    back, ev = assess(OPTS, {}, {"D1": (800, 220), "D2": (200, 52), "D3": (800, 216)}, prev)
-    assert back["D2"][0] == "good" and ev[0]["event"] == "recovered"
+    win = lambda d2: {"D2": {"D1": (800, 220), "D2": d2, "D3": (800, 216)}}
+    still, _ = assess(OPTS, {}, win((200, 52)), prev)
+    assert still["D2"][0] == "bad"                                   # looks fine but only 200 dials: not enough to trust
+    worse, _ = assess(OPTS, {}, win((400, 44)), prev)
+    assert worse["D2"][0] == "bad"                                   # plenty of data, still clearly worse
+    back, ev = assess(OPTS, {}, win((400, 104)), prev)
+    assert back["D2"][0] == "probation" and ev[0]["event"] == "recovered"   # comparable: back on PROBATION, not full share
 
 
 def test_target_floor_and_even_split():
     t = target_dist(OPTS, {"D1": ("good", 0), "D2": ("bad", 0), "D3": ("unknown", 0)})
-    assert abs(sum(t.values()) - 1) < 1e-9 and t["D2"] == 0.03 and abs(t["D1"] - 0.485) < 1e-9 # type: ignore
+    assert abs(sum(t.values()) - 1) < 1e-9 and t["D2"] == 0.03 and abs(t["D1"] - 0.485) < 1e-9
     assert target_dist(["D1"], {"D1": ("bad", 0)}) is None          # never zero out every number
 
 
@@ -125,3 +128,29 @@ def test_protective_steps_are_not_throttled_by_cooldown(tmp_path):
     for m in ("11:15", "11:30", "11:45", "12:00", "12:15"):
         mgr.tick(f"2027-01-04T{m}:00+05:30")
     assert sim.config["allocations"]["default"]["caller_id"]["D2"] <= 0.04 + 1e-9      # reached the floor within a few ticks
+
+
+def test_probation_ramps_back_gradually():
+    status = {"D1": ("good", 0), "D2": ("probation", 0), "D3": ("good", 0)}
+    start, mid, end = (target_dist(OPTS, status, ramp={"D2": r}) for r in (0.0, 0.5, 1.0))
+    assert abs(start["D2"] - 0.03) < 1e-9 and abs(end["D2"] - 1 / 3) < 1e-9 # type: ignore
+    assert start["D2"] < mid["D2"] < end["D2"]
+    assert all(abs(sum(t.values()) - 1) < 1e-9 for t in (start, mid, end))
+
+
+def test_recovery_ignores_healthy_hours_from_before_the_incident(tmp_path):
+    """Regression for the bug the audit trail exposed: a 24h window that still contained the healthy
+    pre-incident hours declared a bad number 'recovered' 30 minutes after it was cut."""
+    sim, store = FakeSim(), Store(str(tmp_path / "s.db"))
+    sim.config = copy.deepcopy(CFG)
+    store.db.execute("INSERT INTO did_state VALUES('w','D1','good',0,'x'),('w','D2','bad',0,'2027-01-04T11:30:00+05:30'),('w','D3','good',0,'x')")
+    for h in (7, 8, 9, 10):
+        for did in OPTS:
+            put_agg(store, did, h, 400, 108)                          # D2 was healthy BEFORE the incident (27% pickup)
+    for h in (11, 12, 13):
+        put_agg(store, "D1", h, 200, 54)
+        put_agg(store, "D3", h, 200, 54)
+        put_agg(store, "D2", h, 20, 1)                                 # cut to the floor, still bad
+    mgr = CallerIdManager(sim, store, Governance(sim, store), {"w": WF}, log=lambda *a: None)
+    mgr.tick("2027-01-04T13:45:00+05:30")
+    assert store.db.execute("SELECT status FROM did_state WHERE caller_id='D2'").fetchone()[0] == "bad"

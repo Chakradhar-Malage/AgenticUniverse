@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS did_state(
   workflow_id TEXT, caller_id TEXT, status TEXT, strikes INTEGER, since_ts TEXT,
   PRIMARY KEY(workflow_id, caller_id));
 
+-- hallucination incidents: one row per incident, state machine in `status`, details in JSON `data`
+CREATE TABLE IF NOT EXISTS incidents(
+  incident_id TEXT PRIMARY KEY, workflow_id TEXT, kind TEXT, status TEXT,
+  opened_ts TEXT, updated_ts TEXT, data TEXT);
+
+-- every credit we spend, and why
+CREATE TABLE IF NOT EXISTS credits_log(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, sim_ts TEXT, workflow_id TEXT, endpoint TEXT, cost REAL, ref TEXT);
+
 -- every config change we SEE (supervisor edits, our own applies)
 CREATE TABLE IF NOT EXISTS config_log(
   event_id INTEGER PRIMARY KEY, workflow_id TEXT, version INTEGER, actor TEXT,

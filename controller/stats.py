@@ -77,3 +77,22 @@ def poisson_rate_excess(k, n, p0, alpha=0.01):
     mu = n * p0
     sd = math.sqrt(max(n * p0 * (1 - p0), 1e-9))
     return 1 - _N.cdf((k - 0.5 - mu) / sd)
+
+
+def binom_sf(k, n, p):
+    """Exact P(X >= k) for X ~ Binomial(n, p), computed in log space. For rare events (hallucination flags)
+    the normal approximation is poor; this is exact and fast enough for n up to ~1e5."""
+    if k <= 0:
+        return 1.0
+    if k > n or p <= 0:
+        return 0.0
+    if p >= 1:
+        return 1.0
+    lp, lq, lg = math.log(p), math.log1p(-p), math.lgamma
+    total = 0.0
+    for i in range(k, n + 1):
+        term = math.exp(lg(n + 1) - lg(i + 1) - lg(n - i + 1) + i * lp + (n - i) * lq)
+        total += term
+        if i > n * p and term < 1e-16 * total:
+            break
+    return min(1.0, total)
