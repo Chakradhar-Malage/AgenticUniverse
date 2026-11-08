@@ -1,14 +1,16 @@
-"""Controller main loop (STEP 1: observe only - it ingests and journals, it changes nothing yet)."""
+"""Controller main loop. Every tick: observe -> govern -> detect/decide -> let the world move -> observe."""
 import argparse
 import hashlib
 import os
 import sys
 import time
 
-from .client import Sim, SimError
 from .callerid import CallerIdManager
+from .client import Sim, SimError
 from .governance import Governance
+from .incidents import HallucinationResponder
 from .ingest import Ingestor, pull_new_chunks
+from .metrics import record_tick, rss_mb, summary
 from .store import Store
 
 
@@ -48,11 +50,11 @@ def main():
     gov = Governance(sim, store)
     wfs = {w["workflow_id"]: w for w in sim.workflows()} # type: ignore
     cid = CallerIdManager(sim, store, gov, wfs, log=log)
+    hal = HallucinationResponder(sim, store, gov, wfs, log=log)
     st = sim.state()
-    store.audit("controller_started", sim_ts=st.get("ts"), credits=st.get("credits_remaining"), # type: ignore
-                resumed=store.max_chunk("events") >= 0)
-    log("started at sim ts", st.get("ts"), "| resumed:", store.max_chunk("events") >= 0) # type: ignore
-
+    resumed = store.max_chunk("events") >= 0
+    store.audit("controller_started", sim_ts=st.get("ts"), credits=st.get("credits_remaining"), resumed=resumed) # type: ignore
+    log("started at sim ts", st.get("ts"), "| resumed:", resumed) # type: ignore
     try:
         gov.resume(st.get("ts"))                 # type: ignore # settle anything a previous crash left half-done
     except SimError as e:
@@ -62,27 +64,33 @@ def main():
 
     while True:
         st = sim.state()
-        if st.get("finished"): # type: ignore
+        if st.get("finished"): #type: ignore
             break
-        pull_new_chunks(sim, ing, "events")      # 1. observe everything that already happened
-        try:
-            gov.poll(st.get("ts"))               # type: ignore # follow open approvals; apply approved ones at once
-        except SimError as e:
-            log("governance poll failed (will retry next tick):", e)
-        try:
-            cid.tick(st.get("ts"))               # type: ignore # caller-ID health: detect bad numbers, rebalance
-        except SimError as e:
-            log("caller-id tick failed (will retry next tick):", e)
-        # (later steps plug in here: hallucination response, experiments)
-        r = sim.advance(a.tick)                  # 2. let the world move
+        ts = st.get("ts") # type: ignore
+        t0 = time.perf_counter()
+        n1 = pull_new_chunks(sim, ing, "events")  # 1. observe everything that already happened
+        t1 = time.perf_counter()
+        for name, fn in (("governance poll", gov.poll), ("caller-id", cid.tick), ("incidents", hal.tick)):
+            try:
+                fn(ts)                           # 2. follow approvals, detect, decide
+            except SimError as e:
+                log(f"{name} failed (will retry next tick):", e)
+        t2 = time.perf_counter()
+        r = sim.advance(a.tick)                  # 3. let the world move
+        t3 = time.perf_counter()
         if r.get("finished"):
             break
-        pull_new_chunks(sim, ing, "events")      # 3. observe what just happened
+        n2 = pull_new_chunks(sim, ing, "events")  # 4. observe what just happened
+        t4 = time.perf_counter()
         store.meta_set("last_sim_ts", r.get("ts"))
+        record_tick(store, r.get("ts"), n1 + n2, (t1 - t0) + (t4 - t3), t2 - t1, t3 - t2,
+                    (t4 - t3) + (t2 - t1), rss_mb(), st.get("credits_remaining"))  #type: ignore
 
     pull_new_chunks(sim, ing, "events")
-    store.audit("controller_finished", sim_ts=sim.state().get("ts")) # type: ignore
-    log("scenario finished. credits:", sim.state().get("credits_remaining")) # type: ignore
+    store.audit("controller_finished", sim_ts=sim.state().get("ts")) #type: ignore
+    log("scenario finished. credits:", sim.state().get("credits_remaining"))  #type: ignore
+    for k, v in summary(store.db).items():
+        log(f"  {k}: {v}")
 
 
 if __name__ == "__main__":
