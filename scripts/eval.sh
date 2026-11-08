@@ -2,13 +2,13 @@
 # One-command evaluation of the controller on a scenario. Avoids every manual-order mistake:
 #   baseline (once) -> fresh simulator -> controller -> grade (UTF-8 safe) -> audit dump.
 #
-#   bash scripts/eval.sh public_02_incidents mine05
-#                        ^ scenario name        ^ NEW run-folder name (never reuse one)
+#   bash scripts/eval.sh public_02_incidents [mine05]
+#                        ^ scenario name     ^ optional NEW run-folder name (auto-generated if omitted)
 #
 # Output: reports/<scenario>.md (grade), reports/<scenario>.audit.txt, reports/<run>.controller.log
 set -uo pipefail
-SCEN="${1:?usage: bash scripts/eval.sh <scenario e.g. public_02_incidents> <new run name e.g. mine05>}"
-RUN="${2:?give a NEW run folder name, e.g. mine05}"
+SCEN="${1:?usage: bash scripts/eval.sh <scenario e.g. public_02_incidents> [new run name]}"
+RUN="${2:-auto_$(date +%H%M%S)}"          # optional: a fresh name is generated if omitted
 URL="http://127.0.0.1:8700"
 BASE="runs/base_${SCEN}"
 export PYTHONUTF8=1
@@ -49,4 +49,6 @@ echo "== grading"
 python -X utf8 -m sim grade --run "runs/$RUN" --baseline "$BASE" --out "reports/$SCEN.md" || exit 1
 python -X utf8 -m controller.audit --limit 300 > "reports/$SCEN.audit.txt" 2>&1
 python -X utf8 -m controller.status | tail -3
+echo "== loop health"
+python -X utf8 -m controller.status --loop | tee "reports/$SCEN.loop.txt"
 echo "== done. Read reports/$SCEN.md and reports/$SCEN.audit.txt"
