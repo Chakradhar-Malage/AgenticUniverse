@@ -60,6 +60,11 @@ CREATE TABLE IF NOT EXISTS incidents(
 CREATE TABLE IF NOT EXISTS credits_log(
   id INTEGER PRIMARY KEY AUTOINCREMENT, sim_ts TEXT, workflow_id TEXT, endpoint TEXT, cost REAL, ref TEXT);
 
+-- the loop's own health, one row per tick (ingest lag, decision time, memory, credits)
+CREATE TABLE IF NOT EXISTS loop_metrics(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, wall_ts REAL, sim_ts TEXT, events INTEGER,
+  ingest_s REAL, decide_s REAL, advance_s REAL, lag_s REAL, rss_mb REAL, credits REAL);
+
 -- every config change we SEE (supervisor edits, our own applies)
 CREATE TABLE IF NOT EXISTS config_log(
   event_id INTEGER PRIMARY KEY, workflow_id TEXT, version INTEGER, actor TEXT,
