@@ -1,0 +1,45 @@
+#1    2027-01-04T00:00:00+05:30  -           controller_started   {"credits": 200.0, "resumed": false}
+#2    2027-01-04T00:00:00+05:30  nw_renewal  proposal_intent      {"proposal_id": "ctl-nw_renewal-v1-97e682c9f83b2fbd", "proposal_kind": "auto", "base_version": 1, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.50, D2:0.50} -> {D1:0.28, D2:0.28, D3:0.23, D4:0.23}.", "rationale": "No caller ID is flagged;
+#3    2027-01-04T00:00:00+05:30  nw_renewal  proposal_applied     {"proposal_id": "ctl-nw_renewal-v1-97e682c9f83b2fbd", "applied_version": 2}
+#4    2027-01-04T00:00:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v1-6d85322f106b4725", "proposal_kind": "auto", "base_version": 1, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.50, D2:0.50} -> {D1:0.41, D2:0.41, D3:0.18}.", "rationale": "No caller ID is flagged; spreading
+#5    2027-01-04T00:00:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v1-6d85322f106b4725", "applied_version": 2}
+#6    2027-01-04T01:00:00+05:30  nw_renewal  proposal_intent      {"proposal_id": "ctl-nw_renewal-v2-2545bac0f5148b96", "proposal_kind": "auto", "base_version": 2, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.28, D2:0.28, D3:0.23, D4:0.23} -> {D1:0.25, D2:0.25, D3:0.25, D4:0.25}.", "rationale": "No cal
+#7    2027-01-04T01:00:00+05:30  nw_renewal  proposal_applied     {"proposal_id": "ctl-nw_renewal-v2-2545bac0f5148b96", "applied_version": 3}
+#8    2027-01-04T01:00:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v2-e38386e53abf7f82", "proposal_kind": "auto", "base_version": 2, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.41, D2:0.41, D3:0.18} -> {D1:0.33, D2:0.33, D3:0.33}.", "rationale": "No caller ID is flagged; 
+#9    2027-01-04T01:00:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v2-e38386e53abf7f82", "applied_version": 3}
+#10   2027-01-04T10:00:00+05:30  nw_kyc      proposal_intent      {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "proposal_kind": "approval", "base_version": 1, "summary": "Rebalance caller-ID traffic (D1, D2, D3)", "rationale": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:1.00} -> {D1:0.33, D2:0.33, D3:0.33}. C
+#11   2027-01-04T10:00:00+05:30  nw_kyc      proposal_pending     {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "approval_id": "apr_00001", "detail": "{\"expires_at\":\"2027-01-05T10:00:00+05:30\",\"status\":\"pending\"}"}
+#12   2027-01-04T15:00:00+05:30  nw_kyc      proposal_approved    {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "detail": "{\"apply_by\":\"2027-01-04T16:44:00+05:30\"}"}
+#13   2027-01-04T15:00:00+05:30  nw_kyc      proposal_applying    {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2"}
+#14   2027-01-04T15:00:00+05:30  nw_kyc      proposal_applied     {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "applied_version": 2}
+#15   2027-01-06T11:15:00+05:30  ks_cancel   did_strike           {"did": "D2", "event": "strike", "n": 168, "pickup": 0.09523809523809523, "peer_pickup": 0.26506024096385544, "p_less": 4.954492109243702e-06, "rel_gap": 0.6406926406926408, "strikes": 1}
+#16   2027-01-06T11:30:00+05:30  ks_cancel   did_bad              {"did": "D2", "event": "bad", "n": 203, "pickup": 0.12315270935960591, "peer_pickup": 0.26700251889168763, "p_less": 2.723361720363693e-05, "rel_gap": 0.538758248907891, "strikes": 2}
+#17   2027-01-06T11:30:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v3-f998a36c34d1388f", "proposal_kind": "auto", "base_version": 3, "summary": "Caller ID D2 picked up 12.3% vs 26.7% for its peers (n=203 dials, p=2.7e-05, 2 consecutive checks). Weights {D1:0.33, D2:0.33, D3:0.33} -> {D1:0.42, D2:0.15, D3:0.42}.", "rationale": "Caller 
+#18   2027-01-06T11:30:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v3-f998a36c34d1388f", "applied_version": 4}
+#19   2027-01-06T11:45:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v4-cf758a579b2d3cd4", "proposal_kind": "auto", "base_version": 4, "summary": "Continuing to keep flagged caller IDs at the floor share. Weights {D1:0.42, D2:0.15, D3:0.42} -> {D1:0.48, D2:0.03, D3:0.48}.", "rationale": "Continuing to keep flagged caller IDs at the floo
+#20   2027-01-06T11:45:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v4-cf758a579b2d3cd4", "applied_version": 5}
+#21   2027-01-06T12:00:00+05:30  ks_cancel   did_recovered        {"did": "D2", "event": "recovered", "n": 1393, "pickup": 0.239770279971285, "peer_pickup": 0.2617226471566345}
+#22   2027-01-06T12:45:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v5-8807a51927a70db4", "proposal_kind": "auto", "base_version": 5, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.48, D2:0.03, D3:0.48} -> {D1:0.40, D2:0.21, D3:0.40}.", "rationale": "No caller ID is flagged; 
+#23   2027-01-06T12:45:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v5-8807a51927a70db4", "applied_version": 6}
+#24   2027-01-06T13:45:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v6-0dce8e3d34bf991a", "proposal_kind": "auto", "base_version": 6, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.40, D2:0.21, D3:0.40} -> {D1:0.33, D2:0.33, D3:0.33}.", "rationale": "No caller ID is flagged; 
+#25   2027-01-06T13:45:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v6-0dce8e3d34bf991a", "applied_version": 7}
+#26   2027-01-06T14:30:00+05:30  ks_cancel   did_strike           {"did": "D2", "event": "strike", "n": 156, "pickup": 0.08333333333333333, "peer_pickup": 0.27702702702702703, "p_less": 3.335798188230932e-07, "rel_gap": 0.6991869918699187, "strikes": 1}
+#27   2027-01-06T14:45:00+05:30  ks_cancel   did_bad              {"did": "D2", "event": "bad", "n": 186, "pickup": 0.07526881720430108, "peer_pickup": 0.27431906614785995, "p_less": 1.0561104768491703e-08, "rel_gap": 0.7256158011133989, "strikes": 2}
+#28   2027-01-06T14:45:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v7-c3a5d4f434b6be7d", "proposal_kind": "auto", "base_version": 7, "summary": "Caller ID D2 picked up 7.5% vs 27.4% for its peers (n=186 dials, p=1.1e-08, 2 consecutive checks). Weights {D1:0.33, D2:0.33, D3:0.33} -> {D1:0.42, D2:0.15, D3:0.42}.", "rationale": "Caller I
+#29   2027-01-06T14:45:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v7-c3a5d4f434b6be7d", "applied_version": 8}
+#30   2027-01-06T15:00:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v8-cbccc54fc6cde84c", "proposal_kind": "auto", "base_version": 8, "summary": "Continuing to keep flagged caller IDs at the floor share. Weights {D1:0.42, D2:0.15, D3:0.42} -> {D1:0.48, D2:0.03, D3:0.48}.", "rationale": "Continuing to keep flagged caller IDs at the floo
+#31   2027-01-06T15:00:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v8-cbccc54fc6cde84c", "applied_version": 9}
+#32   2027-01-14T00:00:00+05:30  -           controller_finished  {}
+
+proposals:
+   ('ctl-nw_renewal-v1-97e682c9f83b2fbd', 'nw_renewal', 'auto', 'applied', None, 2, None)
+   ('ctl-ks_cancel-v1-6d85322f106b4725', 'ks_cancel', 'auto', 'applied', None, 2, None)
+   ('ctl-nw_renewal-v2-2545bac0f5148b96', 'nw_renewal', 'auto', 'applied', None, 3, None)
+   ('ctl-ks_cancel-v2-e38386e53abf7f82', 'ks_cancel', 'auto', 'applied', None, 3, None)
+   ('ctl-nw_kyc-v1-a4686d08feaad2f2', 'nw_kyc', 'approval', 'applied', 'apr_00001', 2, '{"apply_by":"2027-01-04T16:44:00+05:30"}')
+   ('ctl-ks_cancel-v3-f998a36c34d1388f', 'ks_cancel', 'auto', 'applied', None, 4, None)
+   ('ctl-ks_cancel-v4-cf758a579b2d3cd4', 'ks_cancel', 'auto', 'applied', None, 5, None)
+   ('ctl-ks_cancel-v5-8807a51927a70db4', 'ks_cancel', 'auto', 'applied', None, 6, None)
+   ('ctl-ks_cancel-v6-0dce8e3d34bf991a', 'ks_cancel', 'auto', 'applied', None, 7, None)
+   ('ctl-ks_cancel-v7-c3a5d4f434b6be7d', 'ks_cancel', 'auto', 'applied', None, 8, None)
+   ('ctl-ks_cancel-v8-cbccc54fc6cde84c', 'ks_cancel', 'auto', 'applied', None, 9, None)

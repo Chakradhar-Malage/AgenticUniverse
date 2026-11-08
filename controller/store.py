@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS proposals(
   approval_id TEXT, config_json TEXT, body_json TEXT, created_sim_ts TEXT, updated_sim_ts TEXT,
   applied_version INTEGER, detail TEXT);
 
+-- caller-ID health per workflow: unknown -> good | bad, with a strike counter (see callerid.py)
+CREATE TABLE IF NOT EXISTS did_state(
+  workflow_id TEXT, caller_id TEXT, status TEXT, strikes INTEGER, since_ts TEXT,
+  PRIMARY KEY(workflow_id, caller_id));
+
 -- every config change we SEE (supervisor edits, our own applies)
 CREATE TABLE IF NOT EXISTS config_log(
   event_id INTEGER PRIMARY KEY, workflow_id TEXT, version INTEGER, actor TEXT,

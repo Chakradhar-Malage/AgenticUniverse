@@ -11,6 +11,7 @@ class FakeSim:
         self.history = [{"version": 1, "actor": "business_default", "changed_dims": [], "proposal_id": None, "approval_id": None}]
         self.created = self.applied = 0
         self.crash_after = None          # "post" | "apply" | "put"
+        self.config = None
 
     def _boom(self, what):
         if self.crash_after == what:
@@ -53,11 +54,14 @@ class FakeSim:
             if json["base_version"] != self.version: # type: ignore
                 raise SimError(409, {"detail": {"code": "stale_base_version"}})
             self.version += 1
+            self.config = json["proposed_config"] # type: ignore
             self.history.append({"version": self.version, "actor": "controller_auto", "changed_dims": ["caller_id"],
                                  "proposal_id": json["proposal_id"], "approval_id": None}) # type: ignore
             self.applied += 1
             self._boom("put")
             return {"version": self.version, "changed_dims": ["caller_id"]}
+        if method == "GET" and path.endswith("/config") and self.config is not None:
+            return {"workflow_id": "w", "version": self.version, "config": self.config}
         if method == "GET" and path.endswith("/config/history"):
             return self.history
         raise AssertionError(f"unexpected call {method} {path}")

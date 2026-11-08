@@ -6,6 +6,7 @@ import sys
 import time
 
 from .client import Sim, SimError
+from .callerid import CallerIdManager
 from .governance import Governance
 from .ingest import Ingestor, pull_new_chunks
 from .store import Store
@@ -45,6 +46,8 @@ def main():
     store = open_store_for_this_world(sim, a.db)
     ing = Ingestor(store)
     gov = Governance(sim, store)
+    wfs = {w["workflow_id"]: w for w in sim.workflows()} # type: ignore
+    cid = CallerIdManager(sim, store, gov, wfs, log=log)
     st = sim.state()
     store.audit("controller_started", sim_ts=st.get("ts"), credits=st.get("credits_remaining"), # type: ignore
                 resumed=store.max_chunk("events") >= 0)
@@ -66,7 +69,11 @@ def main():
             gov.poll(st.get("ts"))               # type: ignore # follow open approvals; apply approved ones at once
         except SimError as e:
             log("governance poll failed (will retry next tick):", e)
-        # (later steps plug in here: detect -> experiment -> propose)
+        try:
+            cid.tick(st.get("ts"))               # type: ignore # caller-ID health: detect bad numbers, rebalance
+        except SimError as e:
+            log("caller-id tick failed (will retry next tick):", e)
+        # (later steps plug in here: hallucination response, experiments)
         r = sim.advance(a.tick)                  # 2. let the world move
         if r.get("finished"):
             break
