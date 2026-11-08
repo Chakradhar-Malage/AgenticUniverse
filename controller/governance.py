@@ -13,6 +13,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 
+from .chaos import maybe_crash
 from .client import SimError
 
 AGENT_DIMS = ("welcome_message", "voice", "caller_id")
@@ -167,6 +168,7 @@ class Governance:
             body["expires_in_hours"] = expires_in_hours
         self._insert_intent(pid, workflow_id, "approval", base_version, cfg, body, sim_ts, context=context)
         row = self.get(pid)
+        maybe_crash("after_intent")
         self._post_approval(row, sim_ts)
         return row
 
@@ -194,6 +196,7 @@ class Governance:
             else:
                 self._transition(row, "invalid", sim_ts, detail=f"{e.status}: {canon(e.body)}")
             return
+        maybe_crash("after_post")
         self._transition(row, "pending", sim_ts, approval_id=r.get("approval_id"),
                          detail=canon({k: r.get(k) for k in ("expires_at", "status") if k in r}))
 
@@ -230,6 +233,7 @@ class Governance:
             elif not self._reconcile_applied(row, sim_ts):
                 self._transition(row, "failed", sim_ts, detail=f"{e.status}: {canon(e.body)}")
             return self.get(pid)
+        maybe_crash("after_apply")
         self._transition(row, "applied", sim_ts, applied_version=r.get("version"))
         return self.get(pid)
 
@@ -252,6 +256,7 @@ class Governance:
             return self.get(pid)
         self._insert_intent(pid, wf, "auto", base_version, new_cfg, body, sim_ts, context=context)
         row = self.get(pid)
+        maybe_crash("after_intent")
         self._put_auto(row, sim_ts)
         return self.get(pid)
 
@@ -270,6 +275,7 @@ class Governance:
             elif not self._reconcile_applied(row, sim_ts):
                 self._transition(row, "invalid", sim_ts, detail=f"{e.status}: {canon(e.body)}")
             return
+        maybe_crash("after_put")
         self._transition(row, "applied", sim_ts, applied_version=r.get("version"))
 
     # ----- reconciliation
