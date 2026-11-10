@@ -1,0 +1,38 @@
+== crash test: scenario=public_02_incidents point=after_apply run=crash_after_apply_085428
+== 1st run (will be killed at 'after_apply' with exit code 137, like kill -9)
+first run exit code: 137  (137 = killed mid-protocol; 0 = the crash point was never reached)
+#10   2027-01-04T10:00:00+05:30  nw_kyc      proposal_intent      {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "proposal_kind": "approval", "base_version": 1, "summary": "Rebalance caller-ID traffic (D1, D2, D3)", "rationale": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:1.00} -> {D1:0.33, D2:0.33, D3:0.33}. C
+#11   2027-01-04T10:00:00+05:30  nw_kyc      proposal_pending     {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "approval_id": "apr_00001", "detail": "{\"expires_at\":\"2027-01-05T10:00:00+05:30\",\"status\":\"pending\"}"}
+#12   2027-01-04T15:00:00+05:30  nw_kyc      proposal_approved    {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "detail": "{\"apply_by\":\"2027-01-04T16:44:00+05:30\"}"}
+#13   2027-01-04T15:00:00+05:30  nw_kyc      proposal_applying    {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2"}
+
+proposals:
+
+== restart (same database, same simulated world)
+second run exit code: 0
+
+== verification against the simulator's own records
+[PASS] sqlite integrity_check
+[PASS] every event counted exactly once  (counted 324316, simulator emitted 324316)
+[PASS] nw_renewal: applied changes match the simulator's history one-to-one  (simulator 2 controller versions, store 2 applied proposals, duplicates 0)
+[PASS] nw_kyc: applied changes match the simulator's history one-to-one  (simulator 1 controller versions, store 1 applied proposals, duplicates 0)
+[PASS] ks_cancel: applied changes match the simulator's history one-to-one  (simulator 5 controller versions, store 5 applied proposals, duplicates 0)
+[PASS] no proposal left half-done  (0 stuck)
+[INFO] controller started 2 time(s), 1 of them resumed from saved state
+
+RESULT: ALL CHECKS PASSED
+
+== what the restart did about the interrupted step (audit):
+#1    2027-01-04T00:00:00+05:30  -           controller_started   {"credits": 200.0, "resumed": false}
+#2    2027-01-04T00:00:00+05:30  nw_renewal  proposal_intent      {"proposal_id": "ctl-nw_renewal-v1-97e682c9f83b2fbd", "proposal_kind": "auto", "base_version": 1, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.50, D2:0.50} -> {D1:0.28, D2:0.28, D3:0.23, D4:0.23}.", "rationale": "No caller ID is flagged;
+#3    2027-01-04T00:00:00+05:30  nw_renewal  proposal_applied     {"proposal_id": "ctl-nw_renewal-v1-97e682c9f83b2fbd", "applied_version": 2}
+#4    2027-01-04T00:00:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v1-6d85322f106b4725", "proposal_kind": "auto", "base_version": 1, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.50, D2:0.50} -> {D1:0.41, D2:0.41, D3:0.18}.", "rationale": "No caller ID is flagged; spreading
+#5    2027-01-04T00:00:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v1-6d85322f106b4725", "applied_version": 2}
+#6    2027-01-04T01:00:00+05:30  nw_renewal  proposal_intent      {"proposal_id": "ctl-nw_renewal-v2-2545bac0f5148b96", "proposal_kind": "auto", "base_version": 2, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.28, D2:0.28, D3:0.23, D4:0.23} -> {D1:0.25, D2:0.25, D3:0.25, D4:0.25}.", "rationale": "No cal
+#7    2027-01-04T01:00:00+05:30  nw_renewal  proposal_applied     {"proposal_id": "ctl-nw_renewal-v2-2545bac0f5148b96", "applied_version": 3}
+#8    2027-01-04T01:00:00+05:30  ks_cancel   proposal_intent      {"proposal_id": "ctl-ks_cancel-v2-e38386e53abf7f82", "proposal_kind": "auto", "base_version": 2, "summary": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:0.41, D2:0.41, D3:0.18} -> {D1:0.33, D2:0.33, D3:0.33}.", "rationale": "No caller ID is flagged; 
+#9    2027-01-04T01:00:00+05:30  ks_cancel   proposal_applied     {"proposal_id": "ctl-ks_cancel-v2-e38386e53abf7f82", "applied_version": 3}
+#10   2027-01-04T10:00:00+05:30  nw_kyc      proposal_intent      {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "proposal_kind": "approval", "base_version": 1, "summary": "Rebalance caller-ID traffic (D1, D2, D3)", "rationale": "No caller ID is flagged; spreading load evenly so every number gets a fair trial. Weights {D1:1.00} -> {D1:0.33, D2:0.33, D3:0.33}. C
+#11   2027-01-04T10:00:00+05:30  nw_kyc      proposal_pending     {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2", "approval_id": "apr_00001", "detail": "{\"expires_at\":\"2027-01-05T10:00:00+05:30\",\"status\":\"pending\"}"}
+#13   2027-01-04T15:00:00+05:30  nw_kyc      proposal_applying    {"proposal_id": "ctl-nw_kyc-v1-a4686d08feaad2f2"}
+CRASH TEST: PASSED

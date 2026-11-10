@@ -1,0 +1,15 @@
+ticks                            767
+events_live                      109631
+events_history                   187400
+ingest_events_per_sec            11609
+controller_overhead_s_total      15.2
+sim_advance_s_total              6.0
+wall_clock_s_loop                22.5
+sim_days                         8
+decision_lag_s_p50               0.021
+decision_lag_s_p95               0.033
+decision_lag_s_max               0.062
+peak_rss_mb                      83
+changes_applied                  6
+decisions_per_sim_hour           0.03
+credits_used                     0.0
