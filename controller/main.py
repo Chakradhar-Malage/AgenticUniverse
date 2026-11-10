@@ -52,11 +52,11 @@ def main():
     cid = CallerIdManager(sim, store, gov, wfs, log=log)
     hal = HallucinationResponder(sim, store, gov, wfs, log=log)
     st = sim.state()
-    resumed = store.max_chunk("events") >= 0
+    resumed = store.max_chunk("events") >= 0 or store.max_chunk("history") >= 0
     store.audit("controller_started", sim_ts=st.get("ts"), credits=st.get("credits_remaining"), resumed=resumed) # type: ignore
     log("started at sim ts", st.get("ts"), "| resumed:", resumed) # type: ignore
     try:
-        gov.resume(st.get("ts"))                 # type: ignore # settle anything a previous crash left half-done
+        gov.resume(st.get("ts"))    # type: ignore             # settle anything a previous crash left half-done
     except SimError as e:
         log("resume failed (will retry next tick):", e)
     n = pull_new_chunks(sim, ing, "history")
@@ -64,7 +64,7 @@ def main():
 
     while True:
         st = sim.state()
-        if st.get("finished"): #type: ignore
+        if st.get("finished"): # type: ignore
             break
         ts = st.get("ts") # type: ignore
         t0 = time.perf_counter()
@@ -84,11 +84,11 @@ def main():
         t4 = time.perf_counter()
         store.meta_set("last_sim_ts", r.get("ts"))
         record_tick(store, r.get("ts"), n1 + n2, (t1 - t0) + (t4 - t3), t2 - t1, t3 - t2,
-                    (t4 - t3) + (t2 - t1), rss_mb(), st.get("credits_remaining"))  #type: ignore
+                    (t4 - t3) + (t2 - t1), rss_mb(), st.get("credits_remaining")) # type: ignore
 
     pull_new_chunks(sim, ing, "events")
-    store.audit("controller_finished", sim_ts=sim.state().get("ts")) #type: ignore
-    log("scenario finished. credits:", sim.state().get("credits_remaining"))  #type: ignore
+    store.audit("controller_finished", sim_ts=sim.state().get("ts")) # type: ignore
+    log("scenario finished. credits:", sim.state().get("credits_remaining"))  # type: ignore
     for k, v in summary(store.db).items():
         log(f"  {k}: {v}")
 
