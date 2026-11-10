@@ -190,10 +190,10 @@ Credits: 6 of 200. Detection time is bounded by volume: at ks_cancel's ~100 conn
 | | public_01 (8 days) | public_02 (10 days) | **public_03_load (5 days, 12 workflows)** |
 |---|---|---|---|
 | Events ingested (live + history) | 109,631 + 187,400 | 137,042 + 187,274 | **4,200,098 + 5,537,379** (~840k live events/day) |
-| Ingest throughput | 11.6k events/s | 12.4k events/s | **56.1k events/s** |
-| Decision lag (events arrive → decisions made) p50 / p95 / max | 21 / 33 / 62 ms | 19 / 33 / 59 ms | **0.25 / 0.48 / 2.8 s** |
+| Ingest throughput | 11.6k events/s | 11.7k events/s | **56.1k events/s** |
+| Decision lag (events arrive → decisions made) p50 / p95 / max | 21 / 33 / 62 ms | 19 / 40 / 75 ms | **0.25 / 0.48 / 2.8 s** |
 | Peak memory | 83 MB | 85 MB | **788 MB** |
-| Wall-clock, whole run | 27 s | 32 s | **290 s** (history ingest + 5 simulated days) |
+| Wall-clock, whole run | 27 s | 34 s | **290 s** (history ingest + 5 simulated days) |
 | Loop time per simulated day | ~3 s | ~3 s | **~38 s** (of which ~22 s controller, ~16 s the simulator advancing) |
 | Changes applied / credits used | 6 / 0 | 8 / 6 | 28 / 0 |
 
@@ -254,7 +254,41 @@ The same answer in one command, built for the review:
 python -m controller.why --workflow ks_cancel --at 2027-01-07T14:45:00+05:30
 ```
 
-[FILL: paste the real output of this command here after your final public_02 run: it prints WHY (summary, rationale, impact, evidence), WHO/WHEN (decision trail with the approval id), and WHAT HAPPENED NEXT (pickup, engagement and flag rate 6 hours before and after, the verification, and supervisor edits seen).]
+Real output (`reports/why_ks_cancel_D3.txt`, from the final run):
+
+```
+WORKFLOW ks_cancel: config version 7 was applied at 2027-01-07T14:45:00+05:30
+  route: approval path (a named human approver decided)
+
+1. WHY (the controller's recorded reasoning at decision time)
+   summary: "Replace prompt P2 with P1 (hallucination spike)"
+   rationale: "P2 (set by a supervisor) produces hallucination flags on 5.6% of calls versus 1.4% before (12 of 214 calls, p=7.9e-05). Proposed P1, validated at 98.7% (needs 97%). This is a proposal, not an override."
+   impact_score: 0.716
+   affected_leads: 4500
+   diff: {"prompt_version": {"from": "P2", "to": "P1"}}
+   dry_run: {"method": "validation run + own measured history (no counterfactual replay is possible for a prompt)", "current_prompt": "P2", "current_flag_rate": 0.0561, "baseline_flag_rate": 0.0145, "validation": {"run_id": "val_00001", "pass_rate": 0.9867, "n": 600, "required": 0.97}, "engagement_current_prompt_24h": 0.4626, "engagement_candidate_last_7d": 0.4923, "caveat": "validation measures safety only; engagement of a never-run candidate is unknown"}
+   evidence: {"validation_run_id": "val_00001"}
+   incident hal-ks_cancel-85 opened 2027-01-07T13:30:00+05:30: prompt P2 flagged on 5.6% of calls vs 1.4% baseline (p=7.9e-05); credits spent 6
+
+2. WHO / WHEN (decision trail)
+   2027-01-07T13:30:00+05:30  proposal_intent
+   2027-01-07T13:30:00+05:30  proposal_pending     apr_00002
+   2027-01-07T14:45:00+05:30  proposal_approved    {"apply_by":"2027-01-07T16:18:00+05:30"}
+   2027-01-07T14:45:00+05:30  proposal_applying
+   2027-01-07T14:45:00+05:30  proposal_applied     7
+   approval id: apr_00002
+
+3. WHAT HAPPENED NEXT
+   6 hours before: pickup 0.266 (531/2000 dials) | engagement 0.512 (272/531 connected) | hallucination flags 30.1 per 1,000 connected
+   6 hours after : pickup 0.235 (563/2400 dials) | engagement 0.526 (296/563 connected) | hallucination flags 12.4 per 1,000 connected
+   verification: after the fix, flag rate 0.0% on 160 calls, engagement 56.2%
+   next decision: 2027-01-07T16:30:00+05:30  incident_resolved
+
+4. SUPERVISOR EDITS SEEN ON THIS WORKFLOW (we never overwrite or revert them silently)
+   2027-01-07T11:30:00+05:30  version 6  changed ["prompt_version"]
+```
+
+How to read it: *why* (evidence, validated alternative, impact score 0.716, 4,500 affected leads, honest dry run that says engagement of a never-run candidate is unknown), *who* (approval `apr_00002`, decided 14:45, applied inside its window), *what happened next* (flags per 1,000 calls fell from 30.1 to 12.4 and engagement rose from 0.512 to 0.526). Pickup is lower in the "after" window (0.235 vs 0.266) only because those six hours cover the late-afternoon dip and the later-attempt mix seen in the history; a prompt change does not act on pickup, so flags and engagement are the relevant measures. The supervisor's own edit (version 6, 11:30) is listed and was never silently reverted: the fix is a separate, approved version 7.
 
 **Loop health** without logs: `python -m controller.status --loop` (ingest events/s, decision lag, peak memory, decisions per sim-hour, credits used).
 

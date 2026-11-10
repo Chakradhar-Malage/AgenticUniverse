@@ -1,0 +1,30 @@
+WORKFLOW ks_cancel: config version 7 was applied at 2027-01-07T14:45:00+05:30
+  route: approval path (a named human approver decided)
+
+1. WHY (the controller's recorded reasoning at decision time)
+   summary: "Replace prompt P2 with P1 (hallucination spike)"
+   rationale: "P2 (set by a supervisor) produces hallucination flags on 5.6% of calls versus 1.4% before (12 of 214 calls, p=7.9e-05). Proposed P1, validated at 98.7% (needs 97%). This is a proposal, not an override."
+   impact_score: 0.716
+   affected_leads: 4500
+   diff: {"prompt_version": {"from": "P2", "to": "P1"}}
+   dry_run: {"method": "validation run + own measured history (no counterfactual replay is possible for a prompt)", "current_prompt": "P2", "current_flag_rate": 0.0561, "baseline_flag_rate": 0.0145, "validation": {"run_id": "val_00001", "pass_rate": 0.9867, "n": 600, "required": 0.97}, "engagement_current_prompt_24h": 0.4626, "engagement_candidate_last_7d": 0.4923, "caveat": "validation measures safety only; engagement of a never-run candidate is unknown"}
+   evidence: {"validation_run_id": "val_00001"}
+   statistical context: {"incident_id": "hal-ks_cancel-85", "evidence": {"prompt": "P2", "connected": 214, "flags": 12, "rate": 0.056074766355140186, "baseline_rate": 0.014450159196669116, "baseline_n": 8166, "baseline_basis": "other prompts, last 7 days", "p_value": 7.932679513890321e-05, "window_hours": 3}}
+   incident hal-ks_cancel-85 opened 2027-01-07T13:30:00+05:30: prompt P2 flagged on 5.6% of calls vs 1.4% baseline (p=7.9e-05); credits spent 6
+
+2. WHO / WHEN (decision trail)
+   2027-01-07T13:30:00+05:30  proposal_intent      
+   2027-01-07T13:30:00+05:30  proposal_pending     apr_00002
+   2027-01-07T14:45:00+05:30  proposal_approved    {"apply_by":"2027-01-07T16:18:00+05:30"}
+   2027-01-07T14:45:00+05:30  proposal_applying    
+   2027-01-07T14:45:00+05:30  proposal_applied     7
+   approval id: apr_00002
+
+3. WHAT HAPPENED NEXT
+   6 hours before: pickup 0.266 (531/2000 dials) | engagement 0.512 (272/531 connected) | hallucination flags 30.1 per 1,000 connected
+   6 hours after : pickup 0.235 (563/2400 dials) | engagement 0.526 (296/563 connected) | hallucination flags 12.4 per 1,000 connected
+   verification: after the fix, flag rate 0.0% on 160 calls, engagement 56.2%
+   next decision: 2027-01-07T16:30:00+05:30  incident_resolved
+
+4. SUPERVISOR EDITS SEEN ON THIS WORKFLOW (we never overwrite or revert them silently)
+   2027-01-07T11:30:00+05:30  version 6  changed ["prompt_version"]
