@@ -28,7 +28,8 @@ P_BAD = 1e-4           # one-sided p-value needed to call a DID worse than its p
 REL_GAP = 0.20         # ...and the pickup drop must be at least 20% relative (materiality)
 STRIKES = 2            # consecutive ticks flagged before acting
 FLOOR = 0.03           # traffic share kept on a bad DID so recovery is noticed
-WINDOW_H = 2           # recent window for detection (short: fresh evidence is not diluted by healthy hours)
+WINDOW_H = 2           # shortest detection window (short: fresh evidence is not diluted by healthy hours)
+WINDOWS_H = (2, 3, 4, 6, 8, 12)   # a number is judged on the SHORTEST of these in which it has at least MIN_N dials
 RECOVER_H = 24         # longer window for judging recovery (bad DIDs get little traffic)
 RECOVER_MIN_N = 300    # a recovering number must show real volume before we trust it again
 RECOVER_GAP = 0.05     # within 5% of its peers...
@@ -52,6 +53,25 @@ def did_window(store, wf, now_idx, hours):
     return did_range(store, wf, now_idx - hours + 1, now_idx)
 
 
+def per_did_windows(store, wf, idx, opts):
+    """{did: (hours, {did: (dials, connected)})}: for each number, the shortest window in which IT has at least MIN_N
+    dials, together with every number's counts over that same window (so it is compared with its peers like for like).
+
+    Why: on a quiet workflow (e.g. 300 dials/hour over four numbers = 75 an hour each) a number only reaches 150 dials
+    in 2 hours when both hours are full, so a fixed 2-hour window skipped judgement about half the time and a spam-flagged
+    number was never caught (public_01, nw_renewal). Busy workflows still get the 2-hour window."""
+    out, todo = {}, set(opts)
+    for w in WINDOWS_H:
+        if not todo:
+            break
+        win = did_window(store, wf, idx, w)
+        for d in list(todo):
+            if win.get(d, (0, 0))[0] >= MIN_N:
+                out[d] = (w, win)
+                todo.discard(d)
+    return out
+
+
 def _ts_idx(ts):
     d, h = day_hour(ts)
     return d * 24 + h
@@ -67,9 +87,11 @@ def _pool(stats, dids, min_n):
     return n, k
 
 
-def assess(options, stats, recov, prev):
+def assess(options, stats, recov, prev, per_did=None):
     """Update each DID's status from fresh window stats.
     prev: {did: (status, strikes)}.
+    per_did: {did: (window_hours, window_stats)} from per_did_windows(); a number absent from it has too little data
+             to judge. If omitted, the flat `stats` window is used for everyone (kept for simple unit tests).
     recov: {bad_did: {did: (dials, connected)}}, a window for each BAD number covering ONLY the time since it
            was flagged. (First version used a plain 24h window, which still contained the healthy hours before the
            incident and declared the number 'recovered' 30 minutes after it was cut. Found via our own audit trail.)
@@ -90,8 +112,16 @@ def assess(options, stats, recov, prev):
                     ev.append({"did": d, "event": "recovered", "n": rn, "pickup": rk / rn, "peer_pickup": pk / pn})
             out[d] = (st, strikes)
             continue
-        n, k = stats.get(d, (0, 0))
-        pn, pk = _pool(stats, peers, MIN_N)
+        if per_did is not None:
+            chosen = per_did.get(d)
+            if chosen is None:                                    # too little data in every window up to 12 h
+                out[d] = (st, strikes)
+                continue
+            wh, sw = chosen
+        else:
+            wh, sw = WINDOW_H, stats
+        n, k = sw.get(d, (0, 0))
+        pn, pk = _pool(sw, peers, MIN_N)
         if n < MIN_N or pn < MIN_N or not pk:                     # not enough evidence either way
             out[d] = (st, strikes)
             continue
@@ -103,7 +133,7 @@ def assess(options, stats, recov, prev):
             if strikes >= STRIKES:
                 st = "bad"
             ev.append({"did": d, "event": "bad" if st == "bad" else "strike", "n": n, "pickup": k / n,
-                       "peer_pickup": pk / pn, "p_less": t["p_less"], "rel_gap": gap, "strikes": strikes})
+                       "peer_pickup": pk / pn, "p_less": t["p_less"], "rel_gap": gap, "strikes": strikes, "window_hours": wh})
         else:
             strikes = 0
             if st == "unknown":
@@ -197,7 +227,8 @@ class CallerIdManager:
         for d in opts:                                          # recovery evidence = ONLY data since the number was flagged
             if prev.get(d, ("unknown", 0))[0] == "bad" and since0.get(d):
                 recov[d] = did_range(self.store, wid, max(idx - RECOVER_H + 1, _ts_idx(since0[d])), idx)
-        new, events = assess(opts, stats, recov, prev)
+        per = per_did_windows(self.store, wid, idx, opts)
+        new, events = assess(opts, stats, recov, prev, per_did=per)
         newly_bad = [e for e in events if e["event"] == "bad"]
         since = self._since(wid)
         for d, (st_, k_) in list(new.items()):                 # probation graduates to good after PROBATION_H

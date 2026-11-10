@@ -133,7 +133,7 @@ def test_protective_steps_are_not_throttled_by_cooldown(tmp_path):
 def test_probation_ramps_back_gradually():
     status = {"D1": ("good", 0), "D2": ("probation", 0), "D3": ("good", 0)}
     start, mid, end = (target_dist(OPTS, status, ramp={"D2": r}) for r in (0.0, 0.5, 1.0))
-    assert abs(start["D2"] - 0.03) < 1e-9 and abs(end["D2"] - 1 / 3) < 1e-9 # type: ignore
+    assert abs(start["D2"] - 0.03) < 1e-9 and abs(end["D2"] - 1 / 3) < 1e-9
     assert start["D2"] < mid["D2"] < end["D2"]
     assert all(abs(sum(t.values()) - 1) < 1e-9 for t in (start, mid, end))
 
@@ -154,3 +154,32 @@ def test_recovery_ignores_healthy_hours_from_before_the_incident(tmp_path):
     mgr = CallerIdManager(sim, store, Governance(sim, store), {"w": WF}, log=lambda *a: None)
     mgr.tick("2027-01-04T13:45:00+05:30")
     assert store.db.execute("SELECT status FROM did_state WHERE caller_id='D2'").fetchone()[0] == "bad"
+
+
+def test_quiet_number_is_judged_on_a_longer_window(tmp_path):
+    """Regression for the public_01 miss: at 60 dials an hour per number, 2 hours give only 120 dials (< 150), so a
+    fixed 2-hour window never judged a spam-flagged number. The adaptive window uses 3 hours and catches it."""
+    from controller.callerid import per_did_windows
+    sim, store = FakeSim(), Store(str(tmp_path / "s.db"))
+    sim.config = copy.deepcopy(CFG)
+    for h in (9, 10, 11, 12):
+        put_agg(store, "D1", h, 60, 16)
+        put_agg(store, "D3", h, 60, 16)
+        put_agg(store, "D2", h, 60, 5)                          # a degraded number: 8% pickup vs 27%
+    win = per_did_windows(store, "w", 12, OPTS)
+    assert {d: w for d, (w, _) in win.items()} == {"D1": 3, "D2": 3, "D3": 3}
+    mgr = CallerIdManager(sim, store, Governance(sim, store), {"w": WF}, log=lambda *a: None)
+    mgr.tick("2027-01-04T12:30:00+05:30")
+    mgr.tick("2027-01-04T12:45:00+05:30")
+    assert store.db.execute("SELECT status FROM did_state WHERE caller_id='D2'").fetchone()[0] == "bad"
+
+
+def test_busy_number_keeps_the_two_hour_window():
+    from controller.callerid import per_did_windows
+    import tempfile, os
+    store = Store(os.path.join(tempfile.mkdtemp(), "s.db"))
+    for h in (11, 12):
+        for d in OPTS:
+            put_agg(store, d, h, 100, 27)
+    assert all(w == 2 for w, _ in per_did_windows(store, "w", 12, OPTS).values())
+    assert per_did_windows(store, "w", 12, ["D9"]) == {}        # a number with no data is simply not judged
