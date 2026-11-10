@@ -1,6 +1,8 @@
 # Outcome-First Agent Loop — Submission
 
-**Name:** Chakradhar Malage · **Language / storage:** Python 3.12, SQLite (WAL). Dependencies: `httpx` (HTTP). `numpy` is used only by the Monte Carlo script, not by the loop.
+**Name:** Chakradhar Malage · **Date:** 9 Nov 2026 · **Language / storage:** Python 3.12, SQLite (WAL). Dependencies: `httpx` (HTTP). `numpy` is used only by the Monte Carlo script, not by the loop.
+
+> **How I worked:** I used an AI assistant for design discussion, few code files and drafting this document. I ran every test and every scenario myself, and the decisions in §6 and §12 are ones I can explain without it. AI was used to reduce time effort and to avoid silly human mistakes.
 
 ---
 
@@ -10,7 +12,8 @@
 - **public_02:** pickup **+23.3%**, conclusion rate **+26.4%** vs baseline; 8 changes applied (7 beneficial, 1 neutral, **0 harmful**); the supervisor's bad prompt was replaced in **195 minutes** for **6 credits**; ks_cancel engagement went from −3.8% (before the fix) to **+4.5%**.
 - **Crash recovery:** killed at four protocol moments (before the call, after the server accepted, after the server applied, after auto-apply). Four of four restarts finished the run with every event counted once and every change applied once.
 - **Deliberately not built:** variant experiments and promotion/rollback (C6/C7), call-time optimisation (C4), a supervisor UI (C11), fair credit allocation (C15), a per-call variant log. Reasons in §2.
-- **Known miss, found and fixed late:** in public_01 the loop never caught a spam-flagged caller ID on a low-volume workflow (nw_renewal pickup −2.4%). Cause and fix in §11.
+- **public_01 and public_03:** public_01 conclusion **+12.7%**, pickup +10.9% (1 harmful change of 6). public_03_load (12 workflows, ~850k events/day): conclusion **+16.4%**, pickup +13.5%; 28 changes (20 beneficial, 4 neutral, 4 harmful); 5 simulated days in **290 s** wall-clock at **56k events/s**, peak **788 MB**.
+- **Known miss, found and fixed late:** the first public_01 run never caught a spam-flagged caller ID on a low-volume workflow (nw_renewal pickup −2.4%). After the fix it is **+4.7%** and overall conclusion rose from +10.1% to +12.7% (§11). The remaining harmful changes are the blind first-day load spreading (§13).
 
 ---
 
@@ -35,7 +38,7 @@
 
 | # | Capability | Built / Partial / Cut | Why | What it would take to finish |
 |---|---|---|---|---|
-| C1 | Event ingestion at load scale | **Built** | Chunk = unit of idempotency; counters + chunk marker in one transaction. ~13–14k events/s measured on dev scenarios. Load-scenario numbers in §8. | Shard by workflow group across processes if 10× is needed |
+| C1 | Event ingestion at load scale | **Built** | Chunk = unit of idempotency; counters + chunk marker in one transaction. 12–14k events/s on the dev scenarios and 56k events/s on the load scenario (§8). | Shard by workflow group across processes if 10× is needed |
 | C2 | Lead joins + shared cohort object | **Partial** | Lead features are joined at ingest. No cohort object, because no experiments use one | Cohort table keyed by id, used by detection, experiments and any supervisor view |
 | C3 | Bootstrap from history | **Partial** | History is ingested into the same counters and used as baseline context. No schedule is derived from it (hour-of-day looked confounded by attempt mix; `agg_attempt` exists to stratify) | Stratified hour-of-day model per cohort |
 | C4 | Call-time optimisation | **Cut** | Per-person timing is too sparse (returning people are a minority with few calls each); per-cohort timing needs the cohort work above | Per-cohort `hour_weights` with all hours kept in the table (omitted hours get weight 0) |
@@ -74,7 +77,7 @@
 - **Accepted:** kill/restart evidence, idempotency everywhere, no new stateful infrastructure (SQLite, one process), loop health without reading logs, alerts only when actionable.
 - **Pushed back:** nothing. I report honestly where it breaks at 10× (§8).
 - **Wrong claims:** none found.
-- **Reply:** *Kabir, restart safety is demonstrated, not promised: I killed the controller at four dangerous moments (before a call, after the server accepted a request, after it applied a change, after an auto-apply) and each restart finished with every event counted once and every change applied once, checked against the simulator's own records. State lives in one SQLite file, so there is nothing new to operate at 2 a.m. `status --loop` shows ingest rate, decision lag, memory and credit burn. Page-worthy alerts are limited to failed incidents and reserve breaches. First thing to break at 10× is single-process ingest (§8).*
+- **Reply:** *Kabir, restart safety is demonstrated, not promised: I killed the controller at four dangerous moments (before a call, after the server accepted a request, after it applied a change, after an auto-apply) and each restart finished with every event counted once and every change applied once, checked against the simulator's own records. State lives in one SQLite file, so there is nothing new to operate at 2 a.m. `status --loop` shows ingest rate, decision lag, memory and credit burn. Page-worthy alerts are limited to failed incidents and reserve breaches. On the load scenario five simulated days took 290 s wall-clock (about 38 s per simulated day including the simulator's own work) at 56k events/s, peak memory 788 MB, p95 decision lag 0.48 s. At 10× the first wall is memory, then per-tick decision time (§8).*
 
 ### 04 Ops supervisor (Anita Desai, Kestrel)
 - **Accepted:** never undo her edits behind her back (we only propose, with evidence; we touch one field); batching (at most one routine request per workflow per day; incident requests are separate); the "word for word script" warning (our prompt-candidate screen rejects verbatim/strict/urgency wording).
@@ -94,7 +97,7 @@
 ### 06 CTO (Aryamann)
 - **Accepted:** choose and say no; spend credits only where they change a decision (an incident costs 6 credits; the LLM was not needed in public_02); trust the contract over recollection (every memo claim was checked against `/workflows` policies); write for the person on call (§14).
 - **Pushed back:** nothing.
-- **Reply:** *The deliberate cuts are experiments and promotion/rollback, per-person timing, a supervisor UI, fair allocation and a per-call log. I'd rather defend five things completely than sketch fifteen. What breaks first at 10× is single-process ingest (§8); the first production risk is that caller-ID exploration spreads load onto numbers I have not yet judged, which cost one harmful change in public_01 (§11).*
+- **Reply:** *The deliberate cuts are experiments and promotion/rollback, per-person timing, a supervisor UI, fair allocation and a per-call log. I'd rather defend five things completely than sketch fifteen. What breaks first at 10× is memory, then per-tick decision time (§8); the first production risk is that caller-ID exploration spreads load onto numbers I have not yet judged, which cost one harmful change in public_01 and four in public_03 (§11).*
 
 ---
 
@@ -182,18 +185,27 @@ Credits: 6 of 200. Detection time is bounded by volume: at ks_cancel's ~100 conn
 
 ## 8. Scale
 
-**Measured on the dev scenarios** (`python -m controller.status --loop`):
+**Measured** (`python -m controller.status --loop`, laptop, final code):
 
-| | public_01 (8 days) | public_02 (10 days) |
-|---|---|---|
-| Ingest throughput | 13.0k events/s | 14.1k events/s |
-| Decision lag (events arrive → decisions made) p50 / p95 / max | 17 / 29 / 57 ms | 17 / 28 / 56 ms |
-| Peak memory | 84 MB | 84 MB |
-| Wall-clock for the whole scenario | 24 s | 28 s |
+| | public_01 (8 days) | public_02 (10 days) | **public_03_load (5 days, 12 workflows)** |
+|---|---|---|---|
+| Events ingested (live + history) | 109,631 + 187,400 | 137,042 + 187,274 | **4,200,098 + 5,537,379** (~840k live events/day) |
+| Ingest throughput | 11.6k events/s | 12.4k events/s | **56.1k events/s** |
+| Decision lag (events arrive → decisions made) p50 / p95 / max | 21 / 33 / 62 ms | 19 / 33 / 59 ms | **0.25 / 0.48 / 2.8 s** |
+| Peak memory | 83 MB | 85 MB | **788 MB** |
+| Wall-clock, whole run | 27 s | 32 s | **290 s** (history ingest + 5 simulated days) |
+| Loop time per simulated day | ~3 s | ~3 s | **~38 s** (of which ~22 s controller, ~16 s the simulator advancing) |
+| Changes applied / credits used | 6 / 0 | 8 / 6 | 28 / 0 |
 
-**Measured on public_03_load** (12 workflows, 4,500 dials/hour each, 5 days): [FILL from `reports/public_03_load.loop.txt`: events/s, decision lag, peak memory, wall-clock per simulated day. Target: under 10 minutes per simulated day on 4 vCPU / 8 GB.]
+The SRE target (one simulated day of the load scenario in under 10 wall-clock minutes on 4 vCPU / 8 GB) is met about 15× over on my laptop. I did not run on a 4-vCPU/8 GB machine; the numbers above are from a laptop, so treat the margin as indicative.
 
-**What breaks first at 10×:** single-process ingest. At the measured ~13k events/s, 850k events/day is about a minute; 8.5M events/day is about eleven minutes, over the 10-minute budget, and SQLite's single writer becomes the next ceiling. Plan: (1) a substring pre-filter before `json.loads`; (2) shard workflow groups across processes (4 vCPU), each with its own database; (3) move aggregates to Postgres only if cross-shard queries are needed. The aggregate table grows with config versions, so a retention job for old hours is also needed.
+**What breaks first at 10× (linear extrapolation, not measured):**
+1. **Memory.** 788 MB at 12 workflows; the loop reads each chunk fully into memory and keeps a lead-feature cache, so memory grows with events per chunk and with leads. Projected to approach the 8 GB box at 10×. Fix: stream chunks line by line instead of loading the whole body, and bound the lead cache (fall back to SQLite lookups).
+2. **Per-tick decision time.** Median 0.25 s at 12 workflows is about 2.5 s at 120, so about 4 minutes of decision time per simulated day at 96 ticks. Fix: cache each workflow's config by version from `config_changed` events instead of one `GET /config` per workflow per tick, and skip workflows with no new data.
+3. **Single-process ingest.** 56k events/s: 8.5M events a day is about 2.5 minutes. Not the first wall, but together with (1) and (2) a day would be near the 10-minute budget.
+4. **SQLite's single writer** and the growing `agg` table (the 7-day hallucination baseline is the heaviest query).
+
+**Partitioning:** hash workflows to N worker processes (4 vCPU → 4), each with its own SQLite file; governance, caller-ID and incident logic are all per workflow, so there is no cross-shard coordination. Tenant-level fairness (C15) would sit above the shards. Move aggregates to Postgres only if a cross-shard view is needed.
 
 ---
 
@@ -208,7 +220,7 @@ Credits: 6 of 200. Detection time is bounded by volume: at ks_cancel's ~100 conn
 | `after_post` (approval) | accepted the request | "recovered after duplicate" via the 409 | PASS |
 | `after_apply` | applied the approved change | reconciled from history | PASS |
 
-Each run checks: SQLite integrity; **every event counted exactly once** (324,316 counted = 324,316 emitted by the simulator); per workflow the controller's versions in the simulator's history equal our applied proposals one-to-one (no duplicates, none lost); no proposal left half-done.
+All four runs were repeated on the final code. Each run checks: SQLite integrity; **every event counted exactly once** (324,316 counted = 324,316 emitted by the simulator); per workflow the controller's versions in the simulator's history equal our applied proposals one-to-one (no duplicates, none lost); no proposal left half-done.
 
 **Idempotency keys:** proposal ids are `ctl-<workflow>-v<base>-<hash(config)>`; the same change at the same base can never be sent twice; a deliberately fresh retry uses a different id.
 
@@ -263,23 +275,35 @@ python -m controller.why --workflow ks_cancel --at 2027-01-07T14:45:00+05:30
 
 8 changes applied: **7 beneficial, 1 neutral, 0 harmful**; 0 auto-apply rejections, 0 apply conflicts, 0 lapses; MTTR 195 minutes; 6 credits.
 
-**public_01_dev** (earlier run, before the adaptive-window fix below):
+**public_01_dev** (final code, `reports/public_01_dev.md`):
 
 | workflow | conclusion | pickup | engagement |
 |---|---|---|---|
-| ks_cancel | +10.2% | +9.2% | +0.4% |
-| nw_kyc | +31.8% | +25.7% | +1.8% |
-| nw_renewal | **−2.0%** | **−2.4%** | +0.4% |
-| ALL | +10.1% | +8.0% | +1.0% |
+| ks_cancel | +9.8% | +8.2% | +1.4% |
+| nw_kyc | +33.8% | +29.1% | +1.0% |
+| nw_renewal | +4.1% | +4.7% | −0.7% |
+| ALL | **+12.7%** | **+10.9%** | +0.9% |
 
-5 changes: 3 beneficial, 1 neutral, **1 harmful** (nw_renewal v2: the first-day spread onto four numbers, one of which was already spam-flagged).
+6 changes: **4 beneficial, 1 neutral, 1 harmful** (nw_renewal v2, the blind first-day spread). The new beneficial change nw_renewal v4 is the controller finally cutting the degraded number. **Before the adaptive-window fix** the same scenario gave ALL conclusion +10.1% / pickup +8.0% and nw_renewal −2.0% / −2.4% (5 changes, 1 harmful).
+
+**public_03_load** (12 workflows, 4 tenants × renewal/KYC/cancel; `reports/public_03_load.md`): ALL conclusion **+16.4%**, pickup **+13.5%**, engagement +0.6%.
+
+| use case (4 workflows each) | conclusion | pickup | engagement |
+|---|---|---|---|
+| renewal | +5.9% to +8.2% | +5.8% to +6.4% | −0.6% to +1.3% |
+| cancel | +6.7% to +7.9% | +7.1% to +8.2% | −0.6% to +0.2% |
+| KYC | +27.6% to +39.5% | +22.1% to +32.7% | −0.5% to +0.3% |
+
+28 changes: **20 beneficial, 4 neutral, 4 harmful**. Governance: 10 approval requests (8 approved, 2 rejected as "judgement call" by the simulated approver, 0 expired, 0 lapsed), 20 auto-applies, 0 conflicts, peak 1 request per 24 h per workflow. No incidents in this scenario, 0 credits used.
 
 **Interpretation:**
-- Where I helped: pickup on all three workflows in public_02 through load balancing across numbers and removing the flagged one fast; ks_cancel engagement through replacing the bad prompt.
-- Where I was harmful, and why: in public_01, nw_renewal ended below baseline. The loop spread traffic evenly over four numbers immediately, one of which was already bad, and then **never flagged it**: my detector required 150 dials per number inside a 2-hour window, and at nw_renewal's volume (300 dials/hour over four numbers) each number only reaches about 150 in two hours, so judgement was skipped about half the time. Only the busier ks_cancel qualified. **Fix:** each number is now judged on the shortest of six windows (2–12 h) in which it has enough data, with regression tests. [FILL: rerun public_01 and public_02 after the fix and replace the table above with the final numbers.]
-- What I'd change next: ramp never-tried numbers in gradually instead of spreading evenly on day one, and wire the guardrail check into caller-ID decisions.
-
-**public_03_load:** [FILL the grade table if you ran it, and refer to §8 for throughput.]
+- **Where I helped:** pickup on every workflow in all three scenarios (caller-ID load balancing and removing degraded numbers), and the hallucination incident in public_02, which also recovered `ks_cancel` engagement.
+- **Where I was harmful:** all 5 harmful changes across public_01 and public_03 are the same change: the controller's first action, before any data exists, spreads traffic evenly over never-used numbers. On the four renewal workflows one of those numbers is already degraded (per the public scenario's documented truth, used here only to explain the result after the fact, never by the controller), and the first-day spread moves 25% of traffic onto it. The adaptive-window detector then flags and cuts it, which the grader labels beneficial (v4 +0.10), but the first-day cost remains.
+- **The earlier miss:** a fixed 2-hour window with a 150-dial minimum skipped judgement about half the time on quiet workflows (about 75 dials an hour per number), so the degraded number was never flagged. Fixed with per-number windows of 2 to 12 hours and a regression test that fails on the old behaviour. It worked: nw_renewal in public_01 went from −2.4% to +4.7% pickup.
+- **Engagement guardrail on nw_kyc:** −2.3% relative in public_02 is about −1.4 points absolute, inside a 2-point guardrail if the guardrail is absolute (assumption 1). The grader did not flag a violation, but I did not verify its exact definition.
+- **Hallucinated-call counts** in the grader's table rise on KYC workflows (e.g. 45 vs 31) because many more calls connect (pickup +25 to +33%); I did not separate rate from count in my own reporting, so I cannot claim the rate is unchanged from this table alone.
+- **Engagement gap captured is 0 to 15%**, the cost of cutting the experiment engine.
+- **What I'd change next:** ramp never-tried numbers in gradually instead of spreading evenly on day one, and wire the guardrail check into caller-ID decisions.
 
 ---
 
@@ -302,8 +326,8 @@ python -m controller.why --workflow ks_cancel --at 2027-01-07T14:45:00+05:30
 ## 13. Known weaknesses
 
 1. **Experiments are not built,** so engagement-gap capture is low (15% overall in public_02, 5% on nw_renewal). The biggest lever I left on the table.
-2. **First-day exploration spreads blindly** onto numbers that were never judged; in public_01 that was one harmful change and a pickup loss on nw_renewal. A gradual ramp would limit this.
-3. **The caller-ID detector missed a bad number** on a low-volume workflow until the adaptive-window fix; post-fix numbers need confirming on a fresh run.
+2. **First-day exploration spreads blindly** onto numbers that were never judged: 1 of 6 changes harmful in public_01 and 4 of 28 in public_03 (one per renewal workflow). The adaptive-window detector later cuts the degraded number, but the first-day cost remains. A gradual ramp would limit it.
+3. **The caller-ID detector missed a bad number** on low-volume workflows until the adaptive-window fix. Confirmed on the rerun: public_01 nw_renewal pickup went from −2.4% to +4.7%.
 4. **The engagement guardrail is not enforced in caller-ID decisions;** nw_kyc engagement fell 2.3% relative in public_02.
 5. **No per-call variant log,** so a per-customer audit question (Compliance condition 3) cannot be answered from our own store.
 6. **Hallucination detection speed is volume-bound:** about 2 hours on a busy workflow, much longer on a quiet one; MTTR also includes approver latency I cannot control.
@@ -311,6 +335,8 @@ python -m controller.why --workflow ks_cancel --at 2027-01-07T14:45:00+05:30
 8. **"Not before 11:00" (Ops) and the weekly summary (Compliance) are not implemented.**
 9. **Crash demonstration uses injected kill points,** not random-instant kills; memory measurement on Windows uses `ctypes` and may report none on other platforms.
 10. **The aggregate table grows without a retention job.**
+11. **Memory and tail latency:** peak 788 MB on public_03 (whole chunks are read into memory) and a worst decision lag of 2.8 s; projected to approach the 8 GB box at 10×. I did not run on a 4-vCPU / 8 GB machine.
+12. **Approver rejections** (2 of 10 requests in public_03) are retried with fresh data the next day; I did not measure how much value is lost to that delay.
 
 ---
 

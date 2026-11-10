@@ -35,22 +35,22 @@ class FakeSim:
         if (method, path) == ("GET", "/sim/state"):
             return {"credits_remaining": self.credits}
         if (method, path) == ("POST", "/validation/runs"):
-            self.credits -= math.ceil(json["n"] / 100)
+            self.credits -= math.ceil(json["n"] / 100) # type: ignore
             self.val_runs += 1
-            return {"validation_run_id": f"val_{self.val_runs:05d}", "workflow_id": json["workflow_id"],
-                    "prompt_version": json["prompt_version"], "n": json["n"], "pass_rate": self.pass_rates.get(json["prompt_version"], 0.99)}
+            return {"validation_run_id": f"val_{self.val_runs:05d}", "workflow_id": json["workflow_id"], # type: ignore
+                    "prompt_version": json["prompt_version"], "n": json["n"], "pass_rate": self.pass_rates.get(json["prompt_version"], 0.99)} # type: ignore
         if (method, path) == ("POST", "/llm/suggest-fixes"):
             self.credits -= 3
             self.llm_calls += 1
             return {"suggestions": self.suggestions}
         if (method, path) == ("POST", "/approvals"):
-            if any(a["proposal_id"] == json["proposal_id"] for a in self.approvals.values()):
+            if any(a["proposal_id"] == json["proposal_id"] for a in self.approvals.values()): # type: ignore
                 raise SimError(409, {"detail": {"code": "duplicate_proposal_id"}})
-            if json["base_version"] != self.version:
+            if json["base_version"] != self.version: # type: ignore
                 raise SimError(409, {"detail": {"code": "stale_base_version"}})
             aid = f"apr_{len(self.approvals) + 1:05d}"
-            self.approvals[aid] = {"approval_id": aid, "proposal_id": json["proposal_id"], "workflow_id": json["workflow_id"],
-                                   "status": "pending", "base_version": json["base_version"]}
+            self.approvals[aid] = {"approval_id": aid, "proposal_id": json["proposal_id"], "workflow_id": json["workflow_id"], # type: ignore
+                                   "status": "pending", "base_version": json["base_version"]} # type: ignore
             self.created += 1
             self.posted.append(json)
             self._boom("post")
@@ -60,7 +60,7 @@ class FakeSim:
         if method == "GET" and path.startswith("/approvals/"):
             return self.approvals[path.split("/")[-1]]
         if method == "POST" and path.endswith("/apply"):
-            a = self.approvals[json["approval_id"]]
+            a = self.approvals[json["approval_id"]] # type: ignore
             if a["status"] == "applied":
                 raise SimError(409, {"detail": {"code": "already_applied"}})
             if a["base_version"] != self.version:
@@ -73,12 +73,12 @@ class FakeSim:
             self._boom("apply")
             return {"version": self.version, "changed_dims": ["voice"]}
         if method == "PUT" and path.endswith("/config"):
-            if json["base_version"] != self.version:
+            if json["base_version"] != self.version: # type: ignore
                 raise SimError(409, {"detail": {"code": "stale_base_version"}})
             self.version += 1
-            self.config = json["proposed_config"]
+            self.config = json["proposed_config"] # type: ignore
             self.history.append({"version": self.version, "actor": "controller_auto", "changed_dims": ["caller_id"],
-                                 "proposal_id": json["proposal_id"], "approval_id": None})
+                                 "proposal_id": json["proposal_id"], "approval_id": None}) # type: ignore
             self.applied += 1
             self._boom("put")
             return {"version": self.version, "changed_dims": ["caller_id"]}
